@@ -1,0 +1,125 @@
+
+import numpy as np
+import pandas as pd
+
+from ..common import paths
+from ..common.contract import summary, validate
+from . import faostat
+from .countries import area_map
+
+AREA_HARVESTED, PRODUCTION, VALUE_CONST_ID = 5312, 5510, 152
+IMPUTED_FLAGS = {"E": "Estimated value", "I": "Value imputed by a receiving agency"}
+
+AGGREGATE_ITEMS = {1717, 1720, 1723, 1726, 1729, 1732, 1735, 1738, 1804, 1841, 17530}
+PRICE_TOLERANCE = 0.02
+REPRO_TOLERANCE = 0.001
+
+VALUE_COMPUTED = paths.CLEAN / "value_computed.csv"
+
+
+def item_prices(qcl_prod, qv):
+    
+    m = qcl_prod.merge(qv, on=["Area Code", "Item Code", "Year"])
+    m = m[(m["prod_t"] > 1000) & (m["value_fao"] > 100_000)]  
+    m["price"] = m["value_fao"] / m["prod_t"]
+    p = m.groupby("Item Code")["price"].agg(["median", "min", "max", "count"])
+    spread = (p["max"] - p["min"]) / p["median"]
+    assert (spread < PRICE_TOLERANCE).all(), f"value/production is not constant for items:\n{p[spread >= PRICE_TOLERANCE]}"
+    print(f"item prices recovered for {len(p)} items; max spread of value/production within an item: {100 * spread.max():.2f}%")
+    return p["median"]
+
+
+def main():
+    fl = faostat.flags(faostat.QCL)
+    for k, v in IMPUTED_FLAGS.items():
+        assert fl.get(k) == v, f"QCL flag {k} means {fl.get(k)!r}, expected {v!r}"
+    print(f"QCL flags: {fl}")
+
+    qcl = faostat.read(faostat.QCL, [AREA_HARVESTED, PRODUCTION])
+    qv = faostat.read(faostat.QV, [VALUE_CONST_ID])
+    assert (qcl.loc[qcl["Element Code"] == AREA_HARVESTED, "Unit"] == "ha").all()
+    assert (qcl.loc[qcl["Element Code"] == PRODUCTION, "Unit"] == "t").all()
+    assert (qv["Unit"] == "1000 Int$").all()
+
+    
+    crop_items = qcl.loc[qcl["Element Code"] == AREA_HARVESTED, ["Item Code", "Item"]].drop_duplicates()
+    looks_aggregate = crop_items["Item"].str.contains(r"Total$|Primary$|, primary$|Equivalent$", regex=True)
+    assert set(crop_items.loc[looks_aggregate, "Item Code"]) == AGGREGATE_ITEMS,        f"aggregate item list changed: {crop_items[looks_aggregate].to_dict('records')}"
+    crop_codes = set(crop_items["Item Code"]) - AGGREGATE_ITEMS
+    qcl = qcl[qcl["Item Code"].isin(crop_codes)]
+
+    key = ["Area Code", "Item Code", "Year"]
+    area = qcl[qcl["Element Code"] == AREA_HARVESTED].set_index(key)[["Item", "Value", "Flag"]]
+    prod = qcl[qcl["Element Code"] == PRODUCTION].set_index(key)[["Value", "Flag"]]
+    df = area.join(prod, lsuffix="_area", rsuffix="_prod", how="inner").reset_index()
+    df = df.rename(columns={"Value_area": "area_ha", "Value_prod": "prod_t"})
+    df = df[(df["area_ha"] > 0) & df["prod_t"].notna()]
+    df["is_imputed"] = df["Flag_area"].isin(list(IMPUTED_FLAGS)) | df["Flag_prod"].isin(list(IMPUTED_FLAGS))
+
+    
+    qv = qv.rename(columns={"Value": "value_fao"})[key + ["value_fao"]]
+    qv["value_fao"] *= 1000.0  
+    prices = item_prices(df[key + ["prod_t"]], qv)
+    df = df.merge(qv, on=key, how="left")
+    df["price"] = df["Item Code"].map(prices)
+    df["value_const"] = df["value_fao"].fillna(df["prod_t"] * df["price"])
+    df["computed"] = df["value_fao"].isna()
+    
+    pub = df[df["value_fao"].notna() & df["price"].notna()]
+    repro_err = (pub["prod_t"] * pub["price"] - pub["value_fao"]).abs().sum() / pub["value_fao"].sum()
+    assert repro_err < REPRO_TOLERANCE, f"production x item price misses published values by {100 * repro_err:.3f}% of value"
+    print(f"production x item price reproduces {len(pub)} published values to within {100 * repro_err:.4f}% of their total")
+
+    
+    amap = area_map().dropna(subset=["iso3"])
+    df = df.merge(amap[["area_code", "iso3"]], left_on="Area Code", right_on="area_code", how="inner")
+    
+    df["value_const"] = df["value_const"].astype(float)
+    out = df.groupby(["iso3", "Year", "Item Code"], as_index=False).agg(
+        item=("Item", "first"), area_ha=("area_ha", "sum"), prod_t=("prod_t", "sum"),
+        value_const=("value_const", lambda s: s.sum(min_count=len(s))), is_imputed=("is_imputed", "any"),
+        computed=("computed", "any"))
+    old_and_new = df[df["iso3"].isin(["BLX", "SCG", "SDX"])].groupby(["iso3", "Year"])["area_code"].agg(set)
+    for codes in old_and_new:
+        assert not ({15, 186, 206} & codes and codes - {15, 186, 206}), f"merged entity and its successors overlap: {codes}"
+    out = out.rename(columns={"Year": "year", "Item Code": "item_code"})
+    out["yield_t_ha"] = out["prod_t"] / out["area_ha"]
+    out = out.astype({"year": int, "item_code": int, "area_ha": float, "prod_t": float, "value_const": float})
+    out = out.sort_values(["iso3", "item_code", "year"]).reset_index(drop=True)
+    
+    comp = out[out["computed"] & out["value_const"].notna()]
+    record = out.assign(v_comp=out["value_const"].where(out["computed"], 0.0), is_comp=out["computed"] & out["value_const"].notna())        .groupby(["iso3", "year"], as_index=False).agg(n_rows=("item_code", "size"), n_computed=("is_comp", "sum"),
+                                                       value_const=("value_const", "sum"), value_computed=("v_comp", "sum"))
+    record = record[record["n_computed"] > 0]
+    record["share_value_computed"] = record["value_computed"] / record["value_const"]
+    assert not record.duplicated(["iso3", "year"]).any() and record["share_value_computed"].between(0, 1).all()
+    assert np.isclose(record["value_computed"].sum(), comp["value_const"].sum())
+    out = out[["iso3", "year", "item_code", "item", "area_ha", "prod_t", "yield_t_ha", "value_const", "is_imputed"]]
+
+    validate(out, "crops")
+    assert np.allclose(out["yield_t_ha"], out["prod_t"] / out["area_ha"])
+    assert (out["area_ha"] > 0).all()
+    assert "CHN" in set(out["iso3"]) and "IND" in set(out["iso3"])
+    paths.CLEAN.mkdir(parents=True, exist_ok=True)
+    out.to_parquet(paths.CROPS, index=False)
+    record.to_csv(VALUE_COMPUTED, index=False)
+
+    print(summary(out, "crops"))
+    print(f"items: {out['item_code'].nunique()} crops ({len(AGGREGATE_ITEMS)} aggregate items dropped)")
+    n_none = int(out["value_const"].isna().sum())
+    print(f"value_const rows: {len(out) - len(comp) - n_none} published by FAOSTAT, {len(comp)} computed as production x item price "
+          f"({100 * len(comp) / len(out):.1f}%), {n_none} without a price (left missing)")
+    total, late = out["value_const"].sum(), out["year"] >= 2018
+    print(f"  share of total value computed from price: {100 * comp['value_const'].sum() / total:.1f}% "
+          f"(1993-2017: {100 * comp.loc[comp['year'] < 2018, 'value_const'].sum() / out.loc[~late, 'value_const'].sum():.1f}%, "
+          f"2018-2023: {100 * comp.loc[comp['year'] >= 2018, 'value_const'].sum() / out.loc[late, 'value_const'].sum():.1f}%)")
+    by_country = (comp.groupby("iso3")["value_const"].sum() / out.groupby("iso3")["value_const"].sum()).dropna()
+    print(f"  countries with any computed value: {record['iso3'].nunique()} ({(by_country > 0.1).sum()} with more than 10% of their value computed); "
+          f"{len(record)} country-years listed in {VALUE_COMPUTED.name}")
+    print(f"  items without a price: {sorted(df.loc[df['price'].isna(), 'Item'].unique())}")
+    print(f"rows imputed (flags E, I): {100 * out['is_imputed'].mean():.1f}%; "
+          f"value imputed: {100 * out.loc[out['is_imputed'], 'value_const'].sum() / out['value_const'].sum():.1f}%")
+
+
+if __name__ == "__main__":
+    main()

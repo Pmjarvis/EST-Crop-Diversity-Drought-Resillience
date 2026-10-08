@@ -1,0 +1,13 @@
+*.md
+data/dummy
+outputs/dummy
+.vscode/
+.DS_Store
+__pycache__/
+.venv/
+.pytest_cache/
+data/raw/
+data/dataverse_files/
+data/dataverse_files.zip
+.postqode/
+figures/climate/results/dummy
