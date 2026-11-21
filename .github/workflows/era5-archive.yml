@@ -1,0 +1,66 @@
+name: Archive verified ERA5 source objects
+on:
+  workflow_dispatch:
+  push:
+    branches: [main]
+    paths:
+      - .github/workflows/era5-archive.yml
+      - archive_tools/era5_mirror.py
+      - future_work/era5_source_objects.csv.gz
+permissions:
+  contents: write
+concurrency:
+  group: archive-era5-v1
+  cancel-in-progress: false
+env:
+  GH_TOKEN: ${{ github.token }}
+  TAG: raw-era5-v1
+jobs:
+  release:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - run: |
+          gh release view "$TAG" >/dev/null || gh release create "$TAG" --target "$GITHUB_SHA" --title "ERA5 hourly temperature inputs" --notes "Source objects from Copernicus ERA5, distributed by ARCO-ERA5 and WeatherBench 2. Each object is checked against its archived generation, byte length and publisher MD5. Run python archive_tools/era5_mirror.py restore to obtain the original compressed temperature arrays. Copernicus Climate Change Service information, with processing by the source archive providers. https://doi.org/10.24381/cds.adbb2d47"
+  mirror:
+    needs: release
+    runs-on: ubuntu-latest
+    strategy:
+      fail-fast: false
+      matrix:
+        worker: [0, 1, 2, 3, 4, 5, 6, 7, 8, 9, 10, 11]
+    steps:
+      - uses: actions/checkout@v4
+      - name: Verify objects and publish tar files
+        env:
+          WORKER: ${{ matrix.worker }}
+        run: |
+          set -euo pipefail
+          total=$(python archive_tools/era5_mirror.py list | jq length)
+          for ((i=WORKER; i<total; i+=12)); do
+            file=$(printf 'era5-%03d.tar' "$i")
+            if gh release view "$TAG" --json assets --jq '.assets[].name' | grep -Fx "$file" >/dev/null; then continue; fi
+            python archive_tools/era5_mirror.py pack --part "$i" --out "$RUNNER_TEMP"
+            gh release upload "$TAG" "$RUNNER_TEMP/$file"
+            rm "$RUNNER_TEMP/$file"
+          done
+  verify:
+    needs: mirror
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - run: |
+          set -euo pipefail
+          python archive_tools/era5_mirror.py list > "$RUNNER_TEMP/parts.json"
+          gh release view "$TAG" --json assets --jq '.assets[] | [.name, (.size | tostring)] | @tsv' > "$RUNNER_TEMP/assets.tsv"
+          python - <<'PY'
+          import csv, json, os
+          from pathlib import Path
+          tmp = Path(os.environ["RUNNER_TEMP"])
+          parts = json.loads((tmp / "parts.json").read_text())
+          with (tmp / "assets.tsv").open() as f:
+              assets = {name: int(size) for name, size in csv.reader(f, delimiter="\t")}
+          assert all(p["asset"] in assets and assets[p["asset"]] >= p["bytes"] for p in parts)
+          assert sum(p["objects"] for p in parts) == 14423
+          assert sum(p["bytes"] for p in parts) == 41059659017
+          PY
