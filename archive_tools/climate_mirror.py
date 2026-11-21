@@ -7,6 +7,9 @@ import json
 import shutil
 import tarfile
 import tempfile
+import sys
+import time
+from urllib.request import Request, urlopen
 from concurrent.futures import ThreadPoolExecutor
 from pathlib import Path
 from era5_mirror import ROOT, fetch
@@ -39,12 +42,50 @@ def check(path, row):
             raise ValueError(f"Source checksum mismatch: {path}")
 
 
+def fetch_spei(row, path):
+    """Request explicit ranges, including the range in the URL to isolate upstream caches."""
+    size = int(row["bytes"])
+    stride = 16 * 1024**2
+    with path.open("wb") as out:
+        for offset in range(0, size, stride):
+            end = min(size, offset + stride) - 1
+            for attempt in range(7):
+                try:
+                    url = f"{row['source_url']}?download=1&part={offset}&attempt={attempt}"
+                    headers = {"Range": f"bytes={offset}-{end}", "Accept-Encoding": "identity", "User-Agent": "Mozilla/5.0"}
+                    req = Request(url, headers=headers)
+                    with urlopen(req, timeout=120) as resp:
+                        if offset == 0 and resp.status == 200 and int(resp.headers.get("Content-Length", -1)) == size:
+                            shutil.copyfileobj(resp, out, 1024 * 1024)
+                            return
+                        expected = f"bytes {offset}-{end}/{size}"
+                        if resp.status != 206 or resp.headers.get("Content-Range") != expected:
+                            raise ValueError(f"Expected {expected}, got HTTP {resp.status}, {resp.headers.get('Content-Range')}, {resp.headers.get('Content-Type')}")
+                        data = resp.read(end - offset + 2)
+                    if len(data) != end - offset + 1:
+                        raise ValueError(f"Short source range at {offset}")
+                    if offset == 0 and not data.startswith(b"\x89HDF"):
+                        raise ValueError("Publisher supplied a different file type")
+                    out.write(data)
+                    break
+                except (OSError, ValueError) as exc:
+                    out.seek(offset)
+                    out.truncate()
+                    print(f"{path.name} at {offset}: {exc}", flush=True)
+                    if attempt == 6:
+                        raise
+                    time.sleep(min(30, 2**attempt))
+
+
 def pack(name, rows, out):
     with tempfile.TemporaryDirectory(dir=out) as tmp:
         tmp = Path(tmp)
         def retrieve(row):
             path = tmp / Path(row["path"]).name
-            fetch(row["source_url"], path)
+            if name.startswith("spei"):
+                fetch_spei(row, path)
+            else:
+                fetch(row["source_url"], path)
             check(path, row)
             return path
         with ThreadPoolExecutor(max_workers=6) as pool:
@@ -100,4 +141,8 @@ if __name__ == "__main__":
     else:
         args.out.mkdir(parents=True, exist_ok=True)
         for name in ([args.asset] if args.asset else sorted(sets)):
-            (pack if args.action == "pack" else restore)(name, sets[name], args.out)
+            try:
+                (pack if args.action == "pack" else restore)(name, sets[name], args.out)
+            except (OSError, ValueError) as exc:
+                print(f"::error::{name}: {exc}", file=sys.stderr)
+                raise
