@@ -1,9 +1,19 @@
+"""SPEIbase v2.10 -> cropland-weighted country-year drought exposure -> data/clean/climate.parquet.
+
+First-iteration pipeline written from src/metrics' side; Prathmesh owns this module.
+
+  spei12_w    cropland-weighted mean of SPEI-12 at December
+  spei12_unw  same, weighted by cell area only (cos latitude)
+  spei6min_w  minimum over the 12 months of cropland-weighted SPEI-6
+
+Run: python -m src.climate.aggregate
+"""
 import sys
 
 import geopandas as gpd
 import numpy as np
 import pandas as pd
-import rioxarray  
+import rioxarray  # noqa: F401  (registers the .rio accessor)
 import xarray as xr
 from exactextract import exact_extract
 
@@ -16,7 +26,7 @@ MIN_COVERAGE = 0.9
 
 
 def load_spei(n):
-    
+    """SPEI-n for the window as (time, lat north->south, lon west->east) plus its time index."""
     ds = xr.open_dataset(SPEI_DIR / f"spei{n:02d}.nc")
     da = ds["spei"].sel(time=slice(f"{YEAR_MIN}-01-01", f"{YEAR_MAX}-12-31")).sortby("lat", ascending=False).sortby("lon")
     assert da.shape[1:] == (360, 720), da.shape
@@ -26,13 +36,14 @@ def load_spei(n):
 
 
 def coverage_fractions(gdf, template):
-    
+    """Per country: (flat cell index, fraction of the cell inside the country) on the 0.5 degree grid."""
     res = exact_extract(template, gdf, ["cell_id", "coverage"], include_cols=["iso3"], output="pandas")
     return {r.iso3: (np.asarray(r.cell_id, dtype=int), np.asarray(r.coverage, dtype=float)) for r in res.itertuples()}
 
 
 def weighted_mean(values, w):
-    
+    """values: (time, cells); w: (cells,). Mean over cells with a finite value. Also returns
+    the share of total weight that had a finite value."""
     ok = np.isfinite(values)
     wsum = (ok * w).sum(axis=1)
     mean = np.where(wsum > 0, np.nansum(values * w, axis=1) / np.where(wsum > 0, wsum, 1), np.nan)
@@ -78,7 +89,7 @@ def main():
     if not cropland.OUT.exists():
         print("cropland raster missing: run python -m src.climate.cropland first")
         sys.exit(1)
-    crop = np.load(cropland.OUT)                      
+    crop = np.load(cropland.OUT)                      # (360, 720), north -> south
     spei12, spei6 = load_spei(12), load_spei(6)
     years = np.arange(YEAR_MIN, YEAR_MAX + 1)
     dec = spei12.isel(time=slice(11, None, 12))

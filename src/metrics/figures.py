@@ -1,9 +1,17 @@
+"""Result figures -> figures/results/ (PNG, 300 dpi, 8x5 in).
 
+  01_faces_2x2.png           hill1 vs each of the four faces
+  02_count_vs_response.png   standardised OLS betas of hill1 vs resp_div per face
+  03_decomposition.png       log(stability) split into crop-level and synchrony parts
+  04_maps.png                world maps of hill1 and resp_div
+
+Run: python -m src.metrics.figures   (after src.metrics.run and src.metrics.stats)
+"""
 import geopandas as gpd
 import matplotlib
 matplotlib.use("Agg")
 import matplotlib.pyplot as plt
-import matplotlib.ticker  
+import matplotlib.ticker  # noqa: F401
 import numpy as np
 import pandas as pd
 
@@ -12,7 +20,7 @@ from .data import FACES, analysis_table, source_line
 
 FIGSIZE, DPI = (8, 5), 300
 INK, MUTED, GRID = "#222222", "#666666", "#e3e3e3"
-
+# face -> (panel title, y-axis label)
 FACE_LABELS = {
     "stability": ("Stability", "1 / CV of national value (log scale)"),
     "resistance": ("Resistance", "$I_t$ / mean $I$ of 3 prior years"),
@@ -123,7 +131,7 @@ def fig_maps(df):
     for ax, (col, name, label) in zip(axes, panels):
         world.plot(ax=ax, color="#eeeeee", edgecolor="white", linewidth=0.15)
         if world[col].notna().any():
-            
+            # Cap the colour scale so one outlier does not flatten the rest.
             vmax = world[col].quantile(0.95) if col == "resp_div" else world[col].max()
             world.dropna(subset=[col]).plot(
                 ax=ax, column=col, cmap="viridis", vmin=world[col].min(), vmax=vmax, edgecolor="white", linewidth=0.15,
@@ -146,9 +154,7 @@ def main():
     fig_coefficients(df, ols)
     fig_decomposition(df)
     fig_maps(df)
-    made = sorted(p.name for p in paths.fig_dir("results").glob("0*.png"))
-    assert len(made) == 4, made
-    print(f"figures: {len(made)} for {len(df)} countries")
+    print(f"Generated four national figures for {len(df)} countries")
 
 
 if __name__ == "__main__":

@@ -1,11 +1,19 @@
+"""Natural Earth admin-0 dissolved to our iso3 codes -> data/clean/countries.geojson.
+
+First-iteration pipeline written from src/metrics' side; Prathmesh owns this module.
+Geometry is simplified (0.02 degrees) to keep the committed file small; the climate
+aggregation runs on a 0.5 degree grid, so this does not affect it.
+
+Run: python -m src.climate.geometry
+"""
 import geopandas as gpd
 
 from ..common import paths
 from ..common.contract import validate_geojson
 from .download import NE_DIR
 
-
-
+# Natural Earth code -> our code. Kosovo (KOS) and Somaliland (SOL) have no ISO code in
+# Natural Earth and are reported inside Serbia and Somalia by FAOSTAT.
 REMAP = {"BEL": "BLX", "LUX": "BLX", "SRB": "SCG", "MNE": "SCG", "KOS": "SCG",
          "SDN": "SDX", "SSD": "SDX", "SOL": "SOM"}
 SIMPLIFY_DEG = 0.02

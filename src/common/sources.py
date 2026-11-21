@@ -1,3 +1,4 @@
+"""Download helper that logs every source to data/raw/SOURCES.md."""
 from datetime import date
 
 import requests
@@ -6,6 +7,7 @@ from . import paths
 
 
 def log_source(name, url, file, doi="", note=""):
+    """Print a source and record it in data/raw/SOURCES.md (one section per name, replaced on re-run)."""
     paths.RAW.mkdir(parents=True, exist_ok=True)
     rel = file.relative_to(paths.ROOT) if file.is_absolute() else file
     entry = [f"## {name}", f"- URL: {url}"]
@@ -25,7 +27,7 @@ def log_source(name, url, file, doi="", note=""):
 
 
 def download(name, url, dest, doi="", note=""):
-    
+    """Stream `url` to `dest` unless a complete copy is already there, then log the source."""
     dest.parent.mkdir(parents=True, exist_ok=True)
     with requests.get(url, stream=True, timeout=120) as r:
         r.raise_for_status()

@@ -1,0 +1,5 @@
+archive,path,bytes,sha256
+india-survey-and-geometry.tar.gz,data/raw/icrisat/main merge (droped _merge==2) (560 dist 1990-2015).xls,23739904,e972b837b29298b8f06cda6fe7ea982d90a7a97a66e9a07fc72df3b66680318d
+india-survey-and-geometry.tar.gz,data/raw/india_apy/crop_wise_apy_des.csv,56222102,fe10fbf129b3501bbb3d282c7600402a8ed7248c116f2cc9428bc2b573d1d4a9
+india-survey-and-geometry.tar.gz,data/raw/india_geo/geoBoundaries-IND-ADM1.geojson,46170854,47aa0acb6f69868daee49143276f3ce323f18905ba7d38d0a86816b405028736
+india-survey-and-geometry.tar.gz,data/raw/india_geo/geoBoundaries-IND-ADM2.geojson,48317735,8bef6929fd65432e7dc775e7c44473e84efff064ebddbfd6b834e6291546db40

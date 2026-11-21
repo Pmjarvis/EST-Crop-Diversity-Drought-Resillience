@@ -1,4 +1,7 @@
+"""Run the whole results section: metrics -> stats -> robustness -> figures.
 
+Run: python -m src.metrics.all        (USE_DUMMY=1 for dummy inputs)
+"""
 from . import figures, robustness, run, stats
 
 

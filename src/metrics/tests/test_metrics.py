@@ -1,4 +1,4 @@
-
+"""Unit tests on synthetic series with known answers. Run: python -m pytest src/metrics"""
 import numpy as np
 import pandas as pd
 import pytest
@@ -41,7 +41,7 @@ def test_hill1_even_and_single_crop():
 
 def test_resistance_and_recovery_known_drop_and_rebound():
     index = pd.Series(1.0, index=YEARS)
-    index[2005] = 0.7                      
+    index[2005] = 0.7                      # 30% drop
     index[[2006, 2007, 2008]] = [0.9, 1.0, 1.1]
     assert faces.resistance(index, [2005]) == pytest.approx(0.7)
     assert faces.recovery(index, [2005]) == pytest.approx(1.0 / 0.7)
@@ -53,7 +53,7 @@ def test_resistance_is_median_over_events_and_nan_without_events():
     index[2000], index[2008], index[2016] = 0.5, 0.8, 0.9
     assert faces.resistance(index, [2000, 2008, 2016]) == pytest.approx(0.8)
     assert np.isnan(faces.resistance(index, []))
-    assert np.isnan(faces.recovery(index, [2022]))  
+    assert np.isnan(faces.recovery(index, [2022]))  # no 3 years after inside the series
 
 
 def test_vulnerability_shares():
@@ -72,11 +72,11 @@ def test_stability_is_inverse_cv():
 
 def test_find_events_rule():
     spei = pd.Series(0.0, index=YEARS)
-    spei[1994] = -2.0                  
-    spei[[2002, 2003]] = [-1.2, -1.6]  
-    spei[2005] = -1.1                  
-    spei[2012] = -2.3                  
-    spei[2022] = -1.5                  
+    spei[1994] = -2.0                  # too close to the window start
+    spei[[2002, 2003]] = [-1.2, -1.6]  # run: only the first year is an event
+    spei[2005] = -1.1                  # drought within the 3 prior years (2003)
+    spei[2012] = -2.3                  # clean event
+    spei[2022] = -1.5                  # too close to the window end
     ev = find_events(pd.DataFrame({"iso3": "AAA", "year": YEARS, "spei12_w": spei.to_numpy()}))
     assert ev["year"].tolist() == [2002, 2012]
     assert ev["severity"].tolist() == ["moderate", "extreme"]
@@ -86,7 +86,7 @@ def test_resp_beta_recovers_slope():
     rng = np.random.default_rng(1)
     spei = rng.normal(size=31)
     assert response.resp_beta(0.08 * spei, spei) == pytest.approx(0.08)
-    assert np.isnan(response.resp_beta(0.08 * spei[:19], spei[:19]))  
+    assert np.isnan(response.resp_beta(0.08 * spei[:19], spei[:19]))  # fewer than 20 years
 
 
 def test_resp_div_weighted_sd():
@@ -97,8 +97,8 @@ def test_resp_div_weighted_sd():
 
 
 def test_resp_divergence_ross_2023():
-    assert response.resp_divergence([0.1, 0.3]) == pytest.approx(0.0)      
-    assert response.resp_divergence([-0.2, 0.2]) == pytest.approx(1.0)     
+    assert response.resp_divergence([0.1, 0.3]) == pytest.approx(0.0)      # same sign
+    assert response.resp_divergence([-0.2, 0.2]) == pytest.approx(1.0)     # symmetric around zero
     assert response.resp_divergence([-0.1, 0.0, 0.3]) == pytest.approx((0.4 - 0.2) / 0.4)
     assert response.resp_divergence([0.2, 0.2]) == 0.0
     assert np.isnan(response.resp_divergence([0.2]))
@@ -111,10 +111,10 @@ def test_decomposition_identity_and_limits():
     d = decompose.decompose(values, resid)
     assert d["cv_total"] == pytest.approx(np.sqrt(d["phi_sync"]) * d["mean_crop_cv"], abs=1e-12)
     assert 0 < d["phi_sync"] < 1
-    
+    # Perfectly synchronous crops: phi = 1.
     common = rng.normal(0, 5, 31)
     v = np.column_stack([100 + common, 200 + 2 * common])
     assert decompose.decompose(v, v - v.mean(axis=0))["phi_sync"] == pytest.approx(1.0)
-    
+    # Two crops that cancel exactly: phi = 0.
     v = np.column_stack([100 + common, 100 - common])
     assert decompose.decompose(v, v - v.mean(axis=0))["phi_sync"] == pytest.approx(0.0, abs=1e-12)

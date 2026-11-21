@@ -1,3 +1,9 @@
+"""Drought events from climate.parquet -> data/clean/events.csv (rule in src/metrics/events.py).
+
+First-iteration pipeline written from src/metrics' side; Prathmesh owns this module.
+
+Run: python -m src.climate.events
+"""
 from ..common import paths
 from ..common.contract import load, summary, validate
 from ..metrics.events import DROUGHT_THR, find_events

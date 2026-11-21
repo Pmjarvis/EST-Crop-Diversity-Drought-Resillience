@@ -1,14 +1,17 @@
+"""Generate climate exposure figures -> figures/climate/.
+
+Run: python -m src.climate.figures
+"""
 import numpy as np
 import pandas as pd
 import geopandas as gpd
 import matplotlib.pyplot as plt
 import matplotlib as mpl
-from matplotlib.colors import Normalize
 
 from ..common import paths
 
 def setup_plot_style():
-    
+    """Set climate figure styles."""
     plt.rcParams.update({
         "font.family": "sans-serif",
         "figure.facecolor": "white",
@@ -18,7 +21,7 @@ def setup_plot_style():
     })
 
 def plot_weighted_vs_unweighted(climate, out_dir):
-    
+    """01_weighted_vs_unweighted.png"""
     countries = ["RUS", "AUS", "BRA", "IND", "USA", "CHN"]
     fig, axes = plt.subplots(2, 3, figsize=(12, 8), sharex=True, sharey=True)
     axes = axes.flatten()
@@ -30,7 +33,7 @@ def plot_weighted_vs_unweighted(climate, out_dir):
         ax.plot(df["year"], df["spei12_unw"], label="Unweighted", color="tab:orange", linestyle="--", alpha=0.8)
         ax.plot(df["year"], df["spei12_w"], label="Cropland-weighted", color="tab:blue", linewidth=2)
         
-        
+        # Shade drought years based on weighted SPEI
         drought_years = df[df["spei12_w"] <= -1.0]["year"]
         for dy in drought_years:
             ax.axvspan(dy - 0.5, dy + 0.5, color="tab:red", alpha=0.2, lw=0)
@@ -52,15 +55,15 @@ def plot_weighted_vs_unweighted(climate, out_dir):
     plt.close()
 
 def plot_cropland_weights(out_dir):
-    
+    """02_cropland_weights.png and 02_cropland_weights_lognorm.png"""
     crop_file = paths.RAW / "derived" / "cropland_05deg.npy"
     if not crop_file.exists():
         print(f"Warning: {crop_file} not found. Skipping 02_cropland_weights.png")
         return
         
-    crop = np.load(crop_file)  
+    crop = np.load(crop_file)  # (360, 720) in hectares
     
-    
+    # 1. Linear Scale (Original)
     fig, ax = plt.subplots(figsize=(8, 5))
     crop_masked = np.ma.masked_where(crop <= 0, crop)
     im = ax.imshow(crop_masked, cmap="viridis", extent=[-180, 180, -90, 90])
@@ -76,7 +79,7 @@ def plot_cropland_weights(out_dir):
     plt.savefig(out_dir / "02_cropland_weights.png")
     plt.close()
 
-    
+    # 2. LogNorm Scale (New)
     fig, ax = plt.subplots(figsize=(8, 5))
     im_log = ax.imshow(crop_masked, cmap="viridis", norm=mpl.colors.LogNorm(vmin=max(1, crop_masked.min()), vmax=crop_masked.max()), extent=[-180, 180, -90, 90])
     
@@ -92,7 +95,7 @@ def plot_cropland_weights(out_dir):
     plt.close()
 
 def plot_event_counts(events, geojson_path, out_dir):
-    
+    """03_event_counts_map.png"""
     if not geojson_path.exists():
         print(f"Warning: {geojson_path} not found. Skipping 03_event_counts_map.png")
         return
@@ -126,18 +129,18 @@ def plot_event_counts(events, geojson_path, out_dir):
 
 def main():
     setup_plot_style()
-    out_dir = paths.FIGURES / "climate"
+    out_dir = paths.fig_dir("climate")
     out_dir.mkdir(parents=True, exist_ok=True)
     
     climate = pd.read_parquet(paths.CLIMATE)
     events = pd.read_csv(paths.EVENTS)
     
-    
+    # 1. Generate Figures
     plot_weighted_vs_unweighted(climate, out_dir)
     plot_cropland_weights(out_dir)
     plot_event_counts(events, paths.COUNTRIES_GEOJSON, out_dir)
     
-    
+    # 2. Print Summary Metrics
     print(f"countries covered: {climate['iso3'].nunique()}")
     print(f"total events: {len(events)}")
     

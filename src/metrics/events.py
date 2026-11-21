@@ -1,10 +1,10 @@
-
+"""Drought years and drought events."""
 import pandas as pd
 
 from ..common.contract import YEAR_MAX, YEAR_MIN
 
 DROUGHT_THR = -1.0
-PAD = 3  
+PAD = 3  # years needed before and after an event
 
 
 def severity(spei):
@@ -12,7 +12,11 @@ def severity(spei):
 
 
 def find_events(climate, thr=DROUGHT_THR, year_min=YEAR_MIN, year_max=YEAR_MAX):
-    
+    """Event year = first year of a run of drought years (spei12_w <= thr), with PAD years
+    before and after inside the window and the PAD years before drought-free.
+
+    climate: DataFrame with iso3, year, spei12_w. Returns iso3, year, spei12_w, severity.
+    """
     rows = []
     for iso3, g in climate.groupby("iso3", sort=True):
         s = g.set_index("year")["spei12_w"].sort_index()

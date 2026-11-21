@@ -1,0 +1,20 @@
+source,provider,release_or_measurement,source_record
+FAOSTAT,Food and Agriculture Organization of the United Nations,"Crops and livestock products; value of agricultural production; land use; historic and current food balances; SUA; producer prices; detailed trade matrix. Original normalized bulk downloads are identified by their SHA-256 hashes.",https://www.fao.org/faostat/en/#data
+FAOSTAT terms,Food and Agriculture Organization of the United Nations,"Original source attribution and terms; conversion and filtering are performed by the project.",https://www.fao.org/contact-us/terms/db-terms-of-use/en
+WDI,World Bank,"NY.GDP.PCAP.KD and AG.CON.FERT.ZS; API release 2026-11-11",https://databank.worldbank.org/source/world-development-indicators
+SPAM 2020,International Food Policy Research Institute,"Version 2 release 2 global physical area; source readme included in the original Dataverse download",https://doi.org/10.7910/DVN/SWPENT
+SPEIbase,"Beguería and colleagues, CSIC","SPEIbase v2.10 monthly global climate grids",https://doi.org/10.20350/digitalCSIC/16497
+CRU TS,Climatic Research Unit University of East Anglia,"CRU TS v4.10 monthly maximum temperature and station counts; ODbL for the database and DbCL for individual contents",https://crudata.uea.ac.uk/cru/data/hrg/cru_ts_4.10/
+Natural Earth,Natural Earth,"1:10m Admin 0 Countries v5.1.1; public domain",https://www.naturalearthdata.com/about/terms-of-use/
+geoBoundaries,William & Mary geoBoundaries,"gbOpen India ADM2 2021 and ADM1 2011; release revision 9469f09; source-specific ODbL 1.0 and CC Attribution 2.5 India",https://github.com/wmgeolab/geoBoundaries/tree/9469f09/releaseData/gbOpen/IND
+India district agriculture,Directorate of Economics and Statistics via India Data Portal,"Crop wise area production and yield; Open Data Commons Attribution",https://ckandev.indiadataportal.com/dataset/area-production-yield-apy
+India district land use,Directorate of Economics and Statistics via India Data Portal,"Crop-wise irrigated area; Open Data Commons Attribution; resource and original records are identified in the district source inventory",https://ckandev.indiadataportal.com/dataset/8742251a-5ca1-483d-936a-f68306663cc9
+District five-crop workbook,Mohapatra via Mendeley Data,"ICRISAT district data version 1; CC BY 4.0",https://doi.org/10.17632/ywp3y5j9vv.1
+District Level Database,ICRISAT and Tata-Cornell Institute,"Apportioned crops and prices and irrigation; dated original portal captures specified in future_work/district_sources.json",https://doi.org/10.21421/D2/XFB1BZ
+District cross-check,Yi Jie Gwee via World Bank,"DLD source tables credited to ICRISAT and Tata-Cornell Institute; archived DLD subset and publisher file hashes",https://doi.org/10.60572/a89v-rt49
+GGCMI Phase 3 crop calendar,GGCMI,"Crop and irrigation calendars v1.01; CC BY 4.0",https://doi.org/10.5281/zenodo.5062513
+Wheat areas,GGCMI,"Winter and spring wheat physical areas v1",https://doi.org/10.5281/zenodo.3773827
+Vegetation health,NOAA NESDIS Center for Satellite Applications and Research,"Blended Vegetation Health 16 km data and country series",https://www.star.nesdis.noaa.gov/smcd/emb/vci/VH/
+ERA5,Copernicus Climate Change Service and ECMWF,"ERA5 hourly data on single levels; compressed temperature chunks distributed by WeatherBench 2 and ARCO-ERA5; the archive preserves original bytes",https://doi.org/10.24381/cds.adbb2d47
+WeatherBench 2,Google Research,"ERA5 1.5 degree conservative regridding",https://weatherbench2.readthedocs.io/en/latest/data-guide.html
+ARCO-ERA5,Google Research,"ERA5 native 0.25 degree temperature; project applies conservative regridding",https://github.com/google-research/arco-era5

@@ -1,4 +1,10 @@
+"""FAOSTAT areas -> iso3 (via M49 and the Natural Earth attribute table) -> data/clean/countries.csv.
 
+First-iteration pipeline written from src/metrics' side; Gursahib owns this module.
+Needs data/raw/naturalearth (python -m src.climate.download).
+
+Run: python -m src.crops.countries
+"""
 import geopandas as gpd
 import pandas as pd
 
@@ -9,32 +15,32 @@ from . import faostat
 NE_ZIP = paths.RAW / "naturalearth" / "ne_10m_admin_0_countries.zip"
 AREA_HARVESTED = 5312
 
-
+# Merged reporting entities. Keys are FAOSTAT area codes.
 MERGED = {
-    15: "BLX", 255: "BLX", 256: "BLX",     
-    186: "SCG", 272: "SCG", 273: "SCG",    
-    206: "SDX", 276: "SDX", 277: "SDX",    
+    15: "BLX", 255: "BLX", 256: "BLX",     # Belgium-Luxembourg, Belgium, Luxembourg
+    186: "SCG", 272: "SCG", 273: "SCG",    # Serbia and Montenegro, Serbia, Montenegro
+    206: "SDX", 276: "SDX", 277: "SDX",    # Sudan (former), Sudan, South Sudan
 }
 MERGED_INFO = {
     "BLX": ("Belgium-Luxembourg", "Europe & Central Asia", "BEL;LUX"),
     "SCG": ("Serbia and Montenegro", "Europe & Central Asia", "SRB;MNE"),
     "SDX": ("Sudan (former)", "Sub-Saharan Africa", "SDN;SSD"),
 }
-CHINA_AGGREGATE = 351  
+CHINA_AGGREGATE = 351  # "China" = mainland + Hong Kong + Macao + Taiwan; dropped, mainland (41) -> CHN
 
 
 def ne_table():
-    
+    """M49 -> iso3, region from Natural Earth (ISO_N3_EH, ISO_A3_EH, REGION_WB)."""
     ne = gpd.read_file(f"zip://{NE_ZIP}", ignore_geometry=True)
     ne = ne[(ne["ISO_N3_EH"] != "-99") & (ne["ISO_A3_EH"] != "-99")].copy()
-    
+    # Dependencies share their sovereign's codes (e.g. Clipperton -> FRA); keep the main unit.
     ne["main"] = ne["ADM0_A3"] == ne["ISO_A3_EH"]
     ne = ne.sort_values("main", ascending=False).drop_duplicates("ISO_N3_EH")
     return ne.rename(columns={"ISO_N3_EH": "m49", "ISO_A3_EH": "iso3", "REGION_WB": "region"})[["m49", "iso3", "region"]]
 
 
 def area_map():
-    
+    """One row per FAOSTAT area with crop data in the window: area_code, area, iso3, region."""
     qcl = faostat.read(faostat.QCL, [AREA_HARVESTED, 5510])
     areas = qcl[qcl["Element Code"] == AREA_HARVESTED].groupby(["Area Code", "Area Code (M49)", "Area"])["Year"] \
         .agg(first_year="min", last_year="max").reset_index()

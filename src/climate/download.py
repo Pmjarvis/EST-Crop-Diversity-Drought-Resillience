@@ -1,3 +1,10 @@
+"""Download SPEIbase v2.10 (SPEI-6, SPEI-12) and Natural Earth admin-0; check the MapSPAM file.
+
+MapSPAM is behind a Harvard Dataverse guestbook form, so it cannot be scripted. Download
+`spam2020V2r2_global_physical_area.geotiff.zip` by hand into data/raw/mapspam/ (see MAPSPAM_HELP).
+
+Run: python -m src.climate.download
+"""
 import sys
 
 from ..common import paths

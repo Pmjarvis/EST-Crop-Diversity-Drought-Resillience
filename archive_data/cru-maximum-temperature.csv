@@ -1,0 +1,5 @@
+archive,path,bytes,sha256
+cru-maximum-temperature.tar.gz,data/raw/cru/cru_ts4.10.1991.2000.tmx.dat.nc.gz,15145899,28431d75441a02a2b4ae87f1ebae79a0274bbd788a70e2eb63e893c46259b9fa
+cru-maximum-temperature.tar.gz,data/raw/cru/cru_ts4.10.2001.2010.tmx.dat.nc.gz,15413818,94a4d25be938284ee907b572374fce314ea243315b59de751aa14a950fa4482e
+cru-maximum-temperature.tar.gz,data/raw/cru/cru_ts4.10.2011.2020.tmx.dat.nc.gz,15549715,9af38223b0063363ec2a19dd3c32f08c3ef9bea42b7000b81a371f300403a7c5
+cru-maximum-temperature.tar.gz,data/raw/cru/cru_ts4.10.2021.2025.tmx.dat.nc.gz,7810859,b2fab2255dcc49440809f23092d5b7011845a97010964e7d4ee009eb8035caa4

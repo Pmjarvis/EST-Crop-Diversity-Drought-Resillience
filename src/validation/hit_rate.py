@@ -1,4 +1,22 @@
+"""Does our drought catalogue catch well-known droughts?  -> outputs/validation/drought_hits.csv
 
+Reads src/validation/known_droughts.csv (iso3, year, event_name, source_citation; filled in and
+checked by hand) and, for every known event, reports
+
+  hit_spei12_w       spei12_w     <= -1.0  (cropland-weighted SPEI-12 at December; our drought-year rule)
+  in_event_catalogue the (iso3, year) is a row in events.csv (first year of a run, 3 drought-free years before)
+  hit_spei6min_w     spei6min_w   <= -1.5  (worst month of cropland-weighted SPEI-6)
+  hit_spei12_unw     spei12_unw   <= -1.0  (same rule, area-weighted instead of cropland-weighted)
+  *_pm1              the same test, passed if any of year-1, year, year+1 qualifies (supplementary)
+
+Also writes drought_hits_summary.csv (hit rate per test next to its base rate over ALL country-years)
+and figures/validation/01_hit_rate.png.
+
+Uses climate.parquet directly (not the metrics tables), so countries dropped from the analysis
+sample (e.g. by the inclusion rules) can still be checked.
+
+Run: python -m src.validation.hit_rate        (USE_DUMMY=1 for dummy inputs)
+"""
 from pathlib import Path
 
 import matplotlib
@@ -17,7 +35,7 @@ SPEI6_THR = -1.5
 FIGSIZE, DPI = (8, 5), 300
 INK, MUTED, GRID = "#222222", "#666666", "#e3e3e3"
 
-
+# (label, column in the per-event table, how the base rate is computed)
 TESTS = [
     ("SPEI-12 <= -1.0, cropland-weighted", "hit_spei12_w", "spei12_w"),
     ("SPEI-12 <= -1.0, unweighted", "hit_spei12_unw", "spei12_unw"),
@@ -37,7 +55,7 @@ def read_known():
 
 
 def indicator(values, thr):
-    
+    """True/False where the value exists, <NA> where it does not."""
     return values.le(thr).where(values.notna()).astype("boolean")
 
 
@@ -63,7 +81,7 @@ def hits_table(known, climate, events):
 
 
 def base_rate(climate, events, source):
-    
+    """Share of all country-years in climate.parquet that the test would flag."""
     if source is None:
         return np.nan
     if source == "catalogue":
@@ -88,7 +106,7 @@ def fig_hit_rate(t, s):
     c = plt.get_cmap("tab10").colors
     fig, (ax1, ax2) = plt.subplots(1, 2, figsize=FIGSIZE, gridspec_kw={"width_ratios": [1, 1.7]})
 
-    
+    # (a) hit rate, weighted vs unweighted, next to the share of all country-years flagged
     s2 = s.iloc[:2]
     x = np.arange(2)
     ax1.bar(x, s2["hit_rate"], width=0.6, color=[c[0], c[1]])
@@ -103,7 +121,7 @@ def fig_hit_rate(t, s):
     ax1.legend(frameon=False, loc="upper center", bbox_to_anchor=(0.5, -0.14), fontsize=7)
     ax1.set_title("(a) Hit rate", fontsize=9, color=INK, loc="left")
 
-    
+    # (b) SPEI-12 at each known event, weighted vs unweighted
     labels = [f"{r.iso3} {r.year}" for r in t.itertuples()]
     y = np.arange(len(t))[::-1]
     ax2.axvline(DROUGHT_THR, color=MUTED, linestyle="--", linewidth=0.9)

@@ -1,6 +1,10 @@
+"""FAOSTAT QCL + QV -> data/clean/crops.parquet.
 
+First-iteration pipeline written from src/metrics' side; Gursahib owns this module.
+
+Run: python -m src.crops.crops
+"""
 import numpy as np
-import pandas as pd
 
 from ..common import paths
 from ..common.contract import summary, validate
@@ -9,18 +13,23 @@ from .countries import area_map
 
 AREA_HARVESTED, PRODUCTION, VALUE_CONST_ID = 5312, 5510, 152
 IMPUTED_FLAGS = {"E": "Estimated value", "I": "Value imputed by a receiving agency"}
-
+# Aggregate items that carry an "Area harvested" element (checked against the names below).
 AGGREGATE_ITEMS = {1717, 1720, 1723, 1726, 1729, 1732, 1735, 1738, 1804, 1841, 17530}
 PRICE_TOLERANCE = 0.02
 REPRO_TOLERANCE = 0.001
-
+# Record of the country-years whose value is partly computed (not a contract file).
 VALUE_COMPUTED = paths.CLEAN / "value_computed.csv"
 
 
 def item_prices(qcl_prod, qv):
-    
+    """Constant 2014-2016 international price per item (I$/t), recovered from FAOSTAT itself.
+
+    FAOSTAT's constant-I$ gross production value is production times one international
+    price per item, the same for every country and year. We recover that price as the
+    median of value / production and assert that it really is constant.
+    """
     m = qcl_prod.merge(qv, on=["Area Code", "Item Code", "Year"])
-    m = m[(m["prod_t"] > 1000) & (m["value_fao"] > 100_000)]  
+    m = m[(m["prod_t"] > 1000) & (m["value_fao"] > 100_000)]  # skip rows dominated by rounding
     m["price"] = m["value_fao"] / m["prod_t"]
     p = m.groupby("Item Code")["price"].agg(["median", "min", "max", "count"])
     spread = (p["max"] - p["min"]) / p["median"]
@@ -41,10 +50,11 @@ def main():
     assert (qcl.loc[qcl["Element Code"] == PRODUCTION, "Unit"] == "t").all()
     assert (qv["Unit"] == "1000 Int$").all()
 
-    
+    # Crops = items with an "Area harvested" element, minus aggregates.
     crop_items = qcl.loc[qcl["Element Code"] == AREA_HARVESTED, ["Item Code", "Item"]].drop_duplicates()
     looks_aggregate = crop_items["Item"].str.contains(r"Total$|Primary$|, primary$|Equivalent$", regex=True)
-    assert set(crop_items.loc[looks_aggregate, "Item Code"]) == AGGREGATE_ITEMS,        f"aggregate item list changed: {crop_items[looks_aggregate].to_dict('records')}"
+    assert set(crop_items.loc[looks_aggregate, "Item Code"]) == AGGREGATE_ITEMS, \
+        f"aggregate item list changed: {crop_items[looks_aggregate].to_dict('records')}"
     crop_codes = set(crop_items["Item Code"]) - AGGREGATE_ITEMS
     qcl = qcl[qcl["Item Code"].isin(crop_codes)]
 
@@ -56,24 +66,24 @@ def main():
     df = df[(df["area_ha"] > 0) & df["prod_t"].notna()]
     df["is_imputed"] = df["Flag_area"].isin(list(IMPUTED_FLAGS)) | df["Flag_prod"].isin(list(IMPUTED_FLAGS))
 
-    
+    # Value: FAOSTAT's figure where published, otherwise production x FAOSTAT's own item price.
     qv = qv.rename(columns={"Value": "value_fao"})[key + ["value_fao"]]
-    qv["value_fao"] *= 1000.0  
+    qv["value_fao"] *= 1000.0  # thousand I$ -> I$
     prices = item_prices(df[key + ["prod_t"]], qv)
     df = df.merge(qv, on=key, how="left")
     df["price"] = df["Item Code"].map(prices)
     df["value_const"] = df["value_fao"].fillna(df["prod_t"] * df["price"])
     df["computed"] = df["value_fao"].isna()
-    
+    # The fill is only valid if production x price reproduces the values FAOSTAT does publish.
     pub = df[df["value_fao"].notna() & df["price"].notna()]
     repro_err = (pub["prod_t"] * pub["price"] - pub["value_fao"]).abs().sum() / pub["value_fao"].sum()
     assert repro_err < REPRO_TOLERANCE, f"production x item price misses published values by {100 * repro_err:.3f}% of value"
     print(f"production x item price reproduces {len(pub)} published values to within {100 * repro_err:.4f}% of their total")
 
-    
+    # Map to iso3 and sum merged entities (a merged country-year is imputed if any part is).
     amap = area_map().dropna(subset=["iso3"])
     df = df.merge(amap[["area_code", "iso3"]], left_on="Area Code", right_on="area_code", how="inner")
-    
+    # A crop with no price makes the summed value NaN, not a partial sum.
     df["value_const"] = df["value_const"].astype(float)
     out = df.groupby(["iso3", "Year", "Item Code"], as_index=False).agg(
         item=("Item", "first"), area_ha=("area_ha", "sum"), prod_t=("prod_t", "sum"),
@@ -86,9 +96,10 @@ def main():
     out["yield_t_ha"] = out["prod_t"] / out["area_ha"]
     out = out.astype({"year": int, "item_code": int, "area_ha": float, "prod_t": float, "value_const": float})
     out = out.sort_values(["iso3", "item_code", "year"]).reset_index(drop=True)
-    
+    # Rows of the final table whose value is (partly) production x item price rather than FAOSTAT's figure.
     comp = out[out["computed"] & out["value_const"].notna()]
-    record = out.assign(v_comp=out["value_const"].where(out["computed"], 0.0), is_comp=out["computed"] & out["value_const"].notna())        .groupby(["iso3", "year"], as_index=False).agg(n_rows=("item_code", "size"), n_computed=("is_comp", "sum"),
+    record = out.assign(v_comp=out["value_const"].where(out["computed"], 0.0), is_comp=out["computed"] & out["value_const"].notna()) \
+        .groupby(["iso3", "year"], as_index=False).agg(n_rows=("item_code", "size"), n_computed=("is_comp", "sum"),
                                                        value_const=("value_const", "sum"), value_computed=("v_comp", "sum"))
     record = record[record["n_computed"] > 0]
     record["share_value_computed"] = record["value_computed"] / record["value_const"]

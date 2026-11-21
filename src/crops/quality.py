@@ -1,4 +1,16 @@
+"""Country inclusion rules -> data/clean/quality.csv.
 
+First-iteration pipeline written from src/metrics' side; Gursahib owns this module.
+A year counts as non-imputed when at most half of that year's value comes from rows
+flagged E or I.
+
+Flat-series screen (flat series fake stability): a crop series (production, tonnes) is listed in
+data/clean/flat_series.csv when its LOWESS-detrended CV is < 1%, or when it repeats the same value
+3+ years running AND more than half of its years are imputed. Runs in genuinely reported series are
+kept. The list is a record only: crops.parquet and the inclusion rules above are not changed by it.
+
+Run: python -m src.crops.quality
+"""
 import pandas as pd
 
 from ..common import paths
@@ -14,7 +26,7 @@ BREAK_YEAR = 2018
 
 
 def max_run(v, years):
-    
+    """Longest run of identical values in consecutive years."""
     best = run = 1
     for i in range(1, len(v)):
         run = run + 1 if v[i] == v[i - 1] and years[i] == years[i - 1] + 1 else 1
@@ -46,7 +58,7 @@ def flat_series(crops, q):
 
 
 def included_at(crops, max_share):
-    
+    """Number of countries passing the three inclusion rules at a given imputed-value cut-off."""
     g = crops[crops["value_const"].notna()]
     by = g.assign(imp=g["value_const"] * g["is_imputed"]).groupby(["iso3", "year"])[["imp", "value_const", "area_ha"]].sum()
     good = (by["imp"] / by["value_const"] <= max_share).groupby("iso3").sum() >= MIN_GOOD_YEARS
@@ -55,7 +67,8 @@ def included_at(crops, max_share):
 
 
 def vanished_share(crops, year=BREAK_YEAR, span=4):
-    
+    """Per country, % of the value of the `span` years before `year` held by crops with no rows in the
+    `span` years from `year`. FAOSTAT stops reporting some minor crops for EU countries from 2018."""
     g = crops[crops["value_const"].notna()]
     pre, post = g[g["year"].between(year - span, year - 1)], g[g["year"].between(year, year + span - 1)]
     still = post[["iso3", "item_code"]].drop_duplicates().assign(still=True)

@@ -1,6 +1,5 @@
-
+"""Country-level analysis table: metrics + region + window means of the controls."""
 import numpy as np
-import pandas as pd
 
 from ..common import paths
 from ..common.contract import load
@@ -11,7 +10,8 @@ CONTROLS = ["log_gdp_pc", "fert_kg_ha", "irrig_share"]
 
 
 def analysis_table(metrics=None):
-    
+    """One row per country: contract metrics, name, region, log_gdp_pc, fert_kg_ha, irrig_share
+    (controls are means over the window), share_imputed."""
     metrics = load("metrics") if metrics is None else metrics
     controls = load("controls").groupby("iso3")[["gdp_pc", "fert_kg_ha", "irrig_share"]].mean()
     controls["log_gdp_pc"] = np.log(controls["gdp_pc"])
@@ -23,7 +23,7 @@ def analysis_table(metrics=None):
 
 
 def source_line(n):
-    
+    """Caption source line for figures."""
     if paths.USE_DUMMY:
         return f"SYNTHETIC DUMMY DATA (src.common.make_dummy), not results. n = {n} countries."
     return (f"Source: FAOSTAT (QCL, QV), SPEIbase v2.10, MapSPAM 2020, World Bank WDI. "

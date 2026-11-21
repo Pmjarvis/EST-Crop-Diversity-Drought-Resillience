@@ -1,5 +1,11 @@
+"""WDI + FAOSTAT Land Use -> data/clean/controls.parquet.
 
-import numpy as np
+First-iteration pipeline written from src/metrics' side; Gursahib owns this module.
+gdp_pc and fert_kg_ha are left missing for the merged entities (BLX, SCG, SDX): WDI has
+no series for them and a per-capita figure cannot be summed across members.
+
+Run: python -m src.crops.controls
+"""
 import pandas as pd
 
 from ..common import paths
@@ -26,8 +32,8 @@ def irrigation_share():
     assert (rl["Unit"] == "1000 ha").all()
     rl = rl.merge(area_map().dropna(subset=["iso3"])[["area_code", "iso3"]], left_on="Area Code", right_on="area_code")
     wide = rl.pivot_table(index=["iso3", "Year"], columns="Item Code", values="Value", aggfunc=lambda s: s.sum(min_count=1))
-    
-    
+    # A merged entity gets a share only when both items come from the same members
+    # (FAOSTAT has no irrigation series for Luxembourg, so BLX is missing from 2000).
     members = rl.dropna(subset=["Value"]).pivot_table(index=["iso3", "Year"], columns="Item Code", values="Area Code", aggfunc=frozenset)
     wide = wide[members[ITEM_CROPLAND].eq(members[ITEM_IRRIGATION]).reindex(wide.index, fill_value=False)]
     wide = wide[(wide[ITEM_CROPLAND] > 0) & wide[ITEM_IRRIGATION].notna()]

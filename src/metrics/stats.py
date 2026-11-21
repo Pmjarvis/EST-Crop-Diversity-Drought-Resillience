@@ -1,4 +1,12 @@
+"""Correlation and regression tables -> outputs/stats/.
 
+  spearman.csv       Spearman rho (bootstrap 95% CI, 2000 resamples) of each face vs hill1 and resp_div
+  ols.csv            face ~ z(hill1) + z(resp_div) + z(log gdp_pc) + z(fert_kg_ha) + z(irrig_share), HC3
+  r2_comparison.csv  R2 of hill1-only vs resp_div-only vs both, on the same countries
+  summary.csv        sample sizes and metric medians
+
+Run: python -m src.metrics.stats
+"""
 import numpy as np
 import pandas as pd
 import statsmodels.api as sm
@@ -14,7 +22,7 @@ OUTCOMES = FACES + ["vuln_drought"]
 
 
 def spearman_boot(x, y, n_boot=N_BOOT, seed=SEED):
-    
+    """Spearman rho with a percentile bootstrap 95% CI over country pairs. Returns dict."""
     x, y = np.asarray(x, dtype=float), np.asarray(y, dtype=float)
     ok = np.isfinite(x) & np.isfinite(y)
     x, y, n = x[ok], y[ok], int(ok.sum())
@@ -33,7 +41,7 @@ def zscore(df):
 
 
 def ols_z(df, outcome, terms):
-    
+    """OLS of z(outcome) on z(terms), complete cases, HC3 standard errors. Returns the fit or None."""
     d = df[[outcome] + terms].replace([np.inf, -np.inf], np.nan).dropna()
     if len(d) < max(MIN_N, len(terms) + 3) or (d.std(ddof=1) == 0).any():
         return None
@@ -65,7 +73,7 @@ def ols_table(df):
 def r2_table(df):
     rows = []
     for f in OUTCOMES:
-        d = df[[f] + PREDICTORS].dropna()  
+        d = df[[f] + PREDICTORS].dropna()  # same countries for all three models
         row = {"face": f, "n": len(d)}
         for label, terms in [("hill1_only", ["hill1"]), ("resp_div_only", ["resp_div"]), ("both", PREDICTORS)]:
             fit = ols_z(d, f, terms)

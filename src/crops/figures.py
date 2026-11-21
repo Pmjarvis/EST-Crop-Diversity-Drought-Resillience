@@ -1,4 +1,10 @@
+"""Data-quality figures -> figures/data/.
 
+01_imputed_share_map.png    share of each country's 1993-2023 crop value that FAOSTAT flags E or I
+02_example_flat_series.png  three imputed flat series next to one reported series of the same crop
+
+Run: python -m src.crops.figures
+"""
 import geopandas as gpd
 import matplotlib
 
@@ -62,7 +68,7 @@ def example_flat_series():
         assert len(row) == 1, (iso3, item)
         draw(iso3, item, cols[i], f"{iso3}, {row['item'].iloc[0].split(',')[0]} (flat, {100 * row['share_years_imputed'].iloc[0]:.0f}% of years imputed)")
 
-    
+    # reported comparison: same crop, never imputed, full 31 years, not on the flat list, largest value
     c = crops[crops["item"].str.startswith(REPORTED_ITEM) & (crops["prod_t"] > 0)]
     s = c.groupby("iso3").agg(n=("year", "size"), imp=("is_imputed", "mean"), v=("value_const", "mean"))
     s = s[(s["n"] == 31) & (s["imp"] == 0) & ~s.index.isin(flat["iso3"][flat["item"].str.startswith(REPORTED_ITEM)])]

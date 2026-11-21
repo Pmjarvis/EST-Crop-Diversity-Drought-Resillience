@@ -1,3 +1,11 @@
+"""Data contract: columns, dtypes and keys of every shared table.
+
+    from src.common.contract import load, validate
+    crops = load("crops")            # reads from paths (dummy or real) and validates
+    validate(my_df, "climate")       # call at the end of every pipeline
+
+`python -m src.common.contract` validates every contract file that exists.
+"""
 import json
 
 import pandas as pd
@@ -43,6 +51,96 @@ CONTRACT = {
         "keys": ["iso3", "year"],
         "columns": {"iso3": str, "year": int, "spei12_w": float, "severity": str},
     },
+    "wet_events": {
+        "path": paths.WET_EVENTS,
+        "keys": ["iso3", "year"],
+        "columns": {"iso3": str, "year": int, "spei12_w": float, "severity": str},
+    },
+    "metrics_wet": {
+        "path": paths.METRICS_WET,
+        "keys": ["iso3"],
+        "columns": {"iso3": str, "resistance_wet": float, "recovery_wet": float,
+                    "vuln_wet": float, "n_wet_events": int},
+    },
+    "heat": {
+        "path": paths.HEAT,
+        "keys": ["iso3", "year"],
+        "columns": {"iso3": str, "year": int, "tmx_warm_w": float, "tmx_warm_trend": float, "heat_z_w": float,
+                    "stn_share_w": float},
+    },
+    "heat_events": {
+        "path": paths.HEAT_EVENTS,
+        "keys": ["iso3", "year"],
+        "columns": {"iso3": str, "year": int, "heat_z_w": float, "severity": str},
+    },
+    "metrics_heat": {
+        "path": paths.METRICS_HEAT,
+        "keys": ["iso3"],
+        "columns": {"iso3": str, "resistance_heat": float, "recovery_heat": float, "vuln_heat": float,
+                    "vuln_compound": float, "n_heat_events": int, "n_hot_years": int, "n_compound_years": int},
+    },
+    "mapspam_area": {
+        "path": paths.MAPSPAM_AREA,
+        "keys": ["iso3", "mapspam_crop"],
+        "columns": {"iso3": str, "mapspam_crop": str, "area_ha": float, "irr_ha": float, "rf_ha": float},
+    },
+    "crop_climate_season": {
+        "path": paths.CROP_CLIMATE_SEASON,
+        "keys": ["iso3", "year", "mapspam_crop"],
+        "columns": {"iso3": str, "year": int, "mapspam_crop": str, "crop_spei6_harv_w": float},
+    },
+    "trade_partners": {
+        "path": paths.TRADE_PARTNERS,
+        "keys": ["iso3", "partner_iso3", "year"],
+        "columns": {"iso3": str, "partner_iso3": str, "year": int, "import_t": float, "import_usd": float},
+    },
+    "trade_partners_mirror": {
+        "path": paths.TRADE_PARTNERS_MIRROR,
+        "keys": ["iso3", "partner_iso3", "year"],
+        "columns": {"iso3": str, "partner_iso3": str, "year": int, "import_t": float, "import_usd": float},
+    },
+    "exposure_diversity": {
+        "path": paths.EXPOSURE_DIVERSITY,
+        "keys": ["iso3"],
+        "columns": {"iso3": str, "n_classes": int, "hill1_ms": float, "hill1_exp": float, "exp_ratio": float,
+                    "exp_corr": float, "hill2_ms": float, "hill2_exp": float, "fallback_share": float,
+                    "rest_share": float, "sd_spei": float, "n_drought_years": int, "log_area": float,
+                    "hill1_exp_pre": float, "exp_corr_pre": float, "hill1_exp_season": float,
+                    "exp_corr_season": float, "season_share": float, "rf_share": float, "hill1_exp_main": float,
+                    "exp_corr_main": float, "overseas_share": float},
+    },
+    "supply_diversity": {
+        "path": paths.SUPPLY_DIVERSITY,
+        "keys": ["iso3", "share_source"],
+        "columns": {"iso3": str, "share_source": str, "s_dom": float, "n_partners": int, "n_years": int,
+                    "partner_cover": float, "supply_div": float, "supply_div_exp": float, "supply_ratio": float,
+                    "import_div": float, "import_div_exp": float, "partner_corr": float,
+                    "partner_dry_own_dry": float, "partner_dry_other": float},
+    },
+    "calories": {
+        "path": paths.CALORIES,
+        "keys": ["iso3", "year", "item_code"],
+        "columns": {"iso3": str, "year": int, "item_code": int, "item": str, "kcal": float, "is_imputed": bool},
+    },
+    "trade": {
+        "path": paths.TRADE,
+        "keys": ["iso3", "year"],
+        "columns": {"iso3": str, "year": int, "prod_t": float, "import_t": float, "export_t": float,
+                    "supply_t": float, "import_dep": float, "fbs_source": str},
+    },
+    "prices": {
+        "path": paths.PRICES,
+        "keys": ["iso3", "year", "item_code"],
+        "columns": {"iso3": str, "year": int, "item_code": int, "item": str, "price_usd_t": float,
+                    "is_imputed": bool},
+    },
+    "metrics_kcal": {
+        "path": paths.METRICS_KCAL,
+        "keys": ["iso3"],
+        "columns": {"iso3": str, "stability_kcal": float, "resistance_kcal": float, "recovery_kcal": float,
+                    "vulnerability_kcal": float, "vuln_drought_kcal": float, "n_events_kcal": int,
+                    "kcal_value_coverage": float},
+    },
     "metrics": {
         "path": paths.METRICS,
         "keys": ["iso3"],
@@ -63,7 +161,7 @@ CONTRACT = {
     },
 }
 
-
+# Inclusive (lo, hi) bounds; None = unbounded. NaN is ignored.
 RANGES = {
     "area_ha": (0, None), "prod_t": (0, None), "yield_t_ha": (0, None), "value_const": (0, None),
     "gdp_pc": (0, None), "fert_kg_ha": (0, None), "irrig_share": (0, None),
@@ -72,6 +170,17 @@ RANGES = {
     "vulnerability": (0, 1), "vuln_drought": (0, 1), "n_events": (0, None),
     "resp_div": (0, None), "phi_sync": (0, 1), "mean_crop_cv": (0, None),
     "value_share": (0, 1),
+    "kcal": (0, None), "price_usd_t": (0, None), "import_t": (0, None),
+    "stability_kcal": (0, None), "resistance_kcal": (0, None), "recovery_kcal": (0, None),
+    "vulnerability_kcal": (0, 1), "vuln_drought_kcal": (0, 1), "n_events_kcal": (0, None),
+    "kcal_value_coverage": (0, 1),
+    "resistance_wet": (0, None), "recovery_wet": (0, None), "vuln_wet": (0, 1), "n_wet_events": (0, None),
+    "resistance_heat": (0, None), "recovery_heat": (0, None), "vuln_heat": (0, 1), "vuln_compound": (0, 1),
+    "irr_ha": (0, None), "rf_ha": (0, None), "import_usd": (0, None),
+    "hill1_ms": (1, None), "hill1_exp": (1, None), "exp_ratio": (0, 1), "exp_corr": (-1, 1), "rf_share": (0, 1),
+    "s_dom": (0, 1), "supply_div": (1, None), "supply_div_exp": (1, None), "supply_ratio": (0, 1),
+    "partner_corr": (-1, 1), "partner_cover": (0, 1),
+    "stn_share_w": (0, 1), "n_heat_events": (0, None), "n_hot_years": (0, None), "n_compound_years": (0, None),
 }
 
 _DTYPE_CHECKS = {
@@ -83,7 +192,7 @@ _DTYPE_CHECKS = {
 
 
 def validate(df, name):
-    
+    """Assert that df matches the contract for `name`. Returns df unchanged."""
     spec = CONTRACT[name]
     cols, keys = spec["columns"], spec["keys"]
 
@@ -114,24 +223,33 @@ def validate(df, name):
         bad = set(df["severity"]) - SEVERITIES
         assert not bad, f"events.severity: unexpected values {bad}"
         assert (df["spei12_w"] <= -1.0).all(), "events.spei12_w: event with spei12_w > -1.0"
+    if name == "wet_events":
+        bad = set(df["severity"]) - SEVERITIES
+        assert not bad, f"wet_events.severity: unexpected values {bad}"
+        assert (df["spei12_w"] >= 1.0).all(), "wet_events.spei12_w: event with spei12_w < 1.0"
+    if name == "heat_events":
+        bad = set(df["severity"]) - SEVERITIES
+        assert not bad, f"heat_events.severity: unexpected values {bad}"
+        assert (df["heat_z_w"] >= 1.0).all(), "heat_events.heat_z_w: event with heat_z_w < 1.0"
     return df
 
 
 def validate_geojson(path=None):
-    
+    """Assert every feature has a unique 3-letter `iso3` property. Returns the list of iso3."""
     path = path or paths.COUNTRIES_GEOJSON
     with open(path) as f:
         gj = json.load(f)
     assert gj.get("type") == "FeatureCollection", "countries.geojson: not a FeatureCollection"
     iso = [ft.get("properties", {}).get("iso3") for ft in gj["features"]]
-    assert all(isinstance(i, str) and len(i) == 3 and i.isupper() for i in iso),        "countries.geojson: feature without a valid iso3 property"
+    assert all(isinstance(i, str) and len(i) == 3 and i.isupper() for i in iso), \
+        "countries.geojson: feature without a valid iso3 property"
     assert len(iso) == len(set(iso)), "countries.geojson: duplicate iso3"
     assert all(ft.get("geometry") for ft in gj["features"]), "countries.geojson: feature without geometry"
     return iso
 
 
 def read(name, path=None):
-    
+    """Read a contract table with the contract dtypes, without validating."""
     spec = CONTRACT[name]
     path = path or spec["path"]
     if str(path).endswith(".parquet"):
@@ -141,12 +259,12 @@ def read(name, path=None):
 
 
 def load(name, path=None):
-    
+    """Read a contract table and validate it."""
     return validate(read(name, path), name)
 
 
 def summary(df, name):
-    
+    """One-line summary: rows, countries, years, % missing cells."""
     years = f"{df['year'].min()}-{df['year'].max()}" if "year" in df.columns else "-"
     pct_missing = 100 * df.isna().to_numpy().mean() if len(df) else 0.0
     return (f"{name:<15} rows={len(df):>6}  countries={df['iso3'].nunique():>3}  "
@@ -154,7 +272,7 @@ def summary(df, name):
 
 
 def validate_all():
-    
+    """Validate every contract file that exists at the current paths. Returns the names checked."""
     print(f"USE_DUMMY={'1' if paths.USE_DUMMY else '0'}  clean={paths.CLEAN}  outputs={paths.OUT}")
     checked = []
     for name, spec in CONTRACT.items():
