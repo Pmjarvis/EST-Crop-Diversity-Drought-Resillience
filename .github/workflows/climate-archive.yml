@@ -1,0 +1,45 @@
+name: Archive verified climate grids
+on:
+  workflow_dispatch:
+  push:
+    branches: [main]
+    paths:
+      - .github/workflows/climate-archive.yml
+      - archive_tools/climate_mirror.py
+      - future_work/source_files.csv.gz
+permissions:
+  contents: write
+concurrency:
+  group: archive-climate-v1
+  cancel-in-progress: false
+env:
+  GH_TOKEN: ${{ github.token }}
+  TAG: raw-climate-v1
+jobs:
+  prepare:
+    runs-on: ubuntu-latest
+    outputs:
+      assets: ${{ steps.plan.outputs.assets }}
+    steps:
+      - uses: actions/checkout@v4
+      - id: plan
+        run: |
+          echo "assets=$(python archive_tools/climate_mirror.py list)" >> "$GITHUB_OUTPUT"
+          gh release view "$TAG" >/dev/null || gh release create "$TAG" --target "$GITHUB_SHA" --title "SPEIbase v2.10 and NOAA vegetation grids" --notes "Original gridded input bytes from SPEIbase v2.10 (Beguería and colleagues, https://doi.org/10.20350/digitalCSIC/16497) and NOAA STAR Blended Vegetation Health (https://www.star.nesdis.noaa.gov/smcd/emb/vci/VH/). Each file is verified against the frozen study SHA-256 inventory. Restore with python archive_tools/climate_mirror.py restore."
+  mirror:
+    needs: prepare
+    runs-on: ubuntu-latest
+    strategy:
+      fail-fast: false
+      max-parallel: 8
+      matrix:
+        asset: ${{ fromJSON(needs.prepare.outputs.assets) }}
+    steps:
+      - uses: actions/checkout@v4
+      - env:
+          ASSET: ${{ matrix.asset }}
+        run: |
+          set -euo pipefail
+          if gh release view "$TAG" --json assets --jq '.assets[].name' | grep -Fx "$ASSET" >/dev/null; then exit 0; fi
+          python archive_tools/climate_mirror.py pack --asset "$ASSET" --out "$RUNNER_TEMP"
+          gh release upload "$TAG" "$RUNNER_TEMP/$ASSET"
